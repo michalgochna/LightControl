@@ -28,8 +28,7 @@ LightControlAudioProcessorEditor::LightControlAudioProcessorEditor (LightControl
 
 LightControlAudioProcessorEditor::~LightControlAudioProcessorEditor()
 {
-    broadcasterComponent.removeAllChangeListeners();
-    audioProcessor.removeAllChangeListeners();
+
 }
 
 void LightControlAudioProcessorEditor::paint(juce::Graphics& g)

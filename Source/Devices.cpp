@@ -6,7 +6,9 @@ DevicesPage::DevicesPage(orgb::DeviceListResult& d)
     //deviceButton.setButtonText("Device 1");
     devicesList = d;
     for (const orgb::Device& device :devicesList.devices)
-        addAndMakeVisible(juce::TextButton(device.name));
+        b = juce::TextButton(device.name)
+        addAndMakeVisible(b);
+    
 
 }
 

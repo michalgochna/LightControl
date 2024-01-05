@@ -10,11 +10,10 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include "BroadcasterComponent.h"
-#include "ListenerComponent.h"
+
 #include "Devices.h"
 #include "Settings.h"
-#include "OpenRGBController.h"
+#include "RGBController.h"
 
 
 
@@ -36,8 +35,7 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
 
-    ListenerComponent listenerComponent;
-    BroadcasterComponent broadcasterComponent;
+
     LightControlAudioProcessor& audioProcessor;
 
     juce::TabbedComponent tabs{ juce::TabbedButtonBar::Orientation::TabsAtTop }; // juce::TabbedButtonBar::Orientation::TabsAtTop );

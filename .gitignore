@@ -30,3 +30,23 @@
 *.exe
 *.out
 *.app
+
+*.vsidx
+
+Builds/VisualStudio2022/.vs/LightControl/v17/
+
+Builds/VisualStudio2022/
+
+JuceLibraryCode/
+
+Media/yana.mp3
+
+Media/yana.mp3.reapeaks
+
+Media/yana.mp3.reapindex
+
+OpenRGB.exe - Shortcut.lnk
+
+plugin_test.rpp
+
+LightControl.jucer
