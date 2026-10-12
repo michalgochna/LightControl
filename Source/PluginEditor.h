@@ -1,52 +1,44 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin editor.
-
-  ==============================================================================
-*/
-
 #pragma once
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-
-#include "Devices.h"
 #include "Settings.h"
-#include "RGBController.h"
-
-
+#include "LightDisplay.h"
+#include "Widgets.h"
+#include "LightLookAndFeel.h"
 
 //==============================================================================
-/**
-*/
-class LightControlAudioProcessorEditor  : public juce::AudioProcessorEditor
+class LightControlAudioProcessorEditor  : public juce::AudioProcessorEditor,
+                                          private juce::Timer
 {
 public:
-    LightControlAudioProcessorEditor (LightControlAudioProcessor& p, orgb::DeviceListResult d);
+    explicit LightControlAudioProcessorEditor (LightControlAudioProcessor& p);
     ~LightControlAudioProcessorEditor() override;
 
-    //==============================================================================
-    void paint(juce::Graphics&) override;
+    void paint (juce::Graphics&) override;
     void resized() override;
 
-
 private:
-    // This reference is provided as a quick way for your editor to
-    // access the processor object that created it.
-
+    void timerCallback() override;
+    void setSettingsVisible (bool visible);
+    void layoutSettingsContent();
+    void updateStatuses();
 
     LightControlAudioProcessor& audioProcessor;
 
-    juce::TabbedComponent tabs{ juce::TabbedButtonBar::Orientation::TabsAtTop }; // juce::TabbedButtonBar::Orientation::TabsAtTop );
+    juce::SharedResourcePointer<LightLookAndFeel> laf;
+    juce::TooltipWindow tooltipWindow { this, 500 };
 
+    LightDisplay display;
+    StatusChip openRgbChip, artNetChip;
+    GlowButton settingsButton { "Settings" };
 
-    //DevicesPage devicesPage;
     SettingsPage settingsPage;
-    
+    juce::Viewport settingsViewport;
 
-
-
+    juce::ComponentBoundsConstrainer constrainer;
+    bool settingsVisible = true;
+    int tick = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LightControlAudioProcessorEditor)
 };

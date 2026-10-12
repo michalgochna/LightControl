@@ -1,0 +1,6 @@
+[submodule "third_party/JUCE"]
+	path = third_party/JUCE
+	url = https://github.com/juce-framework/JUCE.git
+[submodule "third_party/OpenRGB-CppSDK"]
+	path = third_party/OpenRGB-CppSDK
+	url = https://github.com/Youda008/OpenRGB-CppSDK.git

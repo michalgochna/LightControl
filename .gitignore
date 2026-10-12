@@ -50,3 +50,5 @@ OpenRGB.exe - Shortcut.lnk
 plugin_test.rpp
 
 LightControl.jucer
+
+build*/

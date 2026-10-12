@@ -8,13 +8,13 @@
 
 #pragma once
 #include <JuceHeader.h>
-#include "RGBController.h"
+#include "LightWorker.h"
 
 
 //==============================================================================
 /**
 */
-class LightControlAudioProcessor  : public juce::AudioProcessor, public juce::ChangeBroadcaster
+class LightControlAudioProcessor  : public juce::AudioProcessor
 {
 public:
     //==============================================================================
@@ -54,10 +54,22 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    OpenRGBController openRGB;
-    bool isPlayingState; 
+    LightWorker lights;
+
+    // Window layout, stored in the project (not in the global defaults). Only touched from the message thread.
+    std::atomic<int> uiWidth { 780 };
+    std::atomic<int> uiHeight { 560 };
+    std::atomic<bool> uiSettingsVisible { true };
+
+    /** Global defaults, used by new plugin instances (a saved project state overrides them). */
+    static juce::File getDefaultsFile();
+    bool saveAsDefaults() const;        // returns false if the file couldn't be written
+    void loadDefaults();                // the defaults file, or factory settings if there is none
 
 private:
+    std::unique_ptr<juce::XmlElement> createStateXml (bool includeUi) const;
+    void applyStateXml (const juce::XmlElement& xml, bool includeUi);
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LightControlAudioProcessor)
 };
