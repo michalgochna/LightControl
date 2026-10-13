@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 
+# Link the MSVC runtime statically so the plugin runs without the VC++ Redistributable installed.
+# Must be set before project(); it only has an effect with MSVC.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 project(LightControl VERSION 0.1.0)
 
 # A Debug build of JUCE's GUI is many times slower; build optimised unless told otherwise.

@@ -24,7 +24,6 @@ namespace help
                 bullet ("Copy the whole LightControl.vst3 folder to:"),
                 code ("C:\\Program Files\\Common Files\\VST3"),
                 bullet ("Writing there needs administrator rights."),
-                bullet ("If Windows complains about a missing VCRUNTIME140.dll or MSVCP140.dll, install the Microsoft Visual C++ Redistributable (x64)."),
 
                 sub ("macOS"),
                 bullet ("Copy LightControl.vst3 to ~/Library/Audio/Plug-Ins/VST3 (just for you) or /Library/Audio/Plug-Ins/VST3 (all users)."),
