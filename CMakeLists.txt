@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 # Must be set before project(); it only has an effect with MSVC.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(LightControl VERSION 1.0.0)
+project(LightControl VERSION 1.1.0)
 
 # A Debug build of JUCE's GUI is many times slower; build optimised unless told otherwise.
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
