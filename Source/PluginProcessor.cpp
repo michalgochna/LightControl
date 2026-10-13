@@ -81,16 +81,16 @@ int LightControlAudioProcessor::getCurrentProgram()
     return 0;
 }
 
-void LightControlAudioProcessor::setCurrentProgram (int index)
+void LightControlAudioProcessor::setCurrentProgram (int)
 {
 }
 
-const juce::String LightControlAudioProcessor::getProgramName (int index)
+const juce::String LightControlAudioProcessor::getProgramName (int)
 {
     return {};
 }
 
-void LightControlAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void LightControlAudioProcessor::changeProgramName (int, const juce::String&)
 {
 }
 

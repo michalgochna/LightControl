@@ -7,6 +7,10 @@ namespace
     constexpr int reconnectDelayMs = 2000;
     constexpr int pollIntervalMs = 20;
 
+    // Once nothing has changed for a while there is no need to look at the transport so often.
+    constexpr int idlePollIntervalMs = 60;
+    constexpr juce::uint32 idleAfterMs = 2000;
+
     // Hosts call setStateInformation() shortly after creating the plugin. Waiting a little before the first output
     // keeps the lights from flashing the default settings of a project that has its own.
     constexpr int startupGraceMs = 400;
@@ -183,8 +187,11 @@ void LightWorker::setDisabledDevices (const juce::StringArray& names)
 
 void LightWorker::setArtNetConfig (const ArtNetConfig& newConfig)
 {
-    const juce::ScopedLock sl (lock);
-    artNetConfig = newConfig;
+    {
+        const juce::ScopedLock sl (lock);
+        artNetConfig = newConfig;
+    }
+    ++artNetVersion;
 }
 
 ArtNetConfig LightWorker::getArtNetConfig() const
@@ -217,7 +224,13 @@ void LightWorker::run()
     int appliedConfig = -1;
     juce::uint32 nextConnectAttempt = 0;
 
+    juce::uint32 lastChangeMs = juce::Time::getMillisecondCounter();
+    TransportState seenState = TransportState::Stopped;
+    juce::uint32 seenColour = 0;
+    int seenConfig = -1, seenArtVersion = -1, artSeenVersion = -1;
+
     ArtNetOutput artNet;
+    ArtNetConfig artCfg;                     // local copy of the Art-Net settings
     ArtNetConfig artSent;                    // config of the last frames we sent
     bool artActive = false;                  // have we sent anything that is still lit?
     TransportState artState = TransportState::Stopped;
@@ -230,7 +243,6 @@ void LightWorker::run()
         switchedToCustom.clear();
         isUp = false;
         haveApplied = false;
-        connected.store (false);
         openRgbStatus.store (int (why));
         deviceCount.store (0);
         {
@@ -247,18 +259,28 @@ void LightWorker::run()
         if (reconnectRequested.exchange (false))
             dropConnection (0, OpenRgbStatus::Starting);
 
+        const auto now = juce::Time::getMillisecondCounter();
+        const auto state = getEffectiveState();
+        const auto colour = colours[(size_t) state].load();
+        const auto config = configVersion.load();
+        const auto artVersion = artNetVersion.load();
+
+        if (state != seenState || colour != seenColour || config != seenConfig || artVersion != seenArtVersion)
+        {
+            seenState = state;
+            seenColour = colour;
+            seenConfig = config;
+            seenArtVersion = artVersion;
+            lastChangeMs = now;
+        }
+
         const bool useOpenRgb = openRgbEnabled.load();
 
         if (! useOpenRgb)
         {
             if (isUp)
             {
-                juce::StringArray disabled;
-                {
-                    const juce::ScopedLock sl (lock);
-                    disabled = disabledDevices;
-                }
-                applyColour (client, devices, juce::Colours::black, disabled, nullptr);
+                applyColour (client, devices, juce::Colours::black, getDisabledDevices(), nullptr);
                 dropConnection (0, OpenRgbStatus::Off);
             }
 
@@ -297,7 +319,6 @@ void LightWorker::run()
 
                     isUp = true;
                     deviceCount.store ((int) devices.size());
-                    connected.store (true);
                     openRgbStatus.store (int (OpenRgbStatus::Connected));
                 }
                 else
@@ -307,17 +328,10 @@ void LightWorker::run()
             }
             else
             {
-                switch (connectStatus)
-                {
-                    case orgb::ConnectStatus::HostNotResolved:
-                        openRgbStatus.store (int (OpenRgbStatus::HostNotResolved));  break;
-                    case orgb::ConnectStatus::VersionNotSupported:
-                        openRgbStatus.store (int (OpenRgbStatus::VersionNotSupported));  break;
-                    case orgb::ConnectStatus::ConnectFailed:
-                        openRgbStatus.store (int (OpenRgbStatus::ServerUnreachable));  break;
-                    default:
-                        openRgbStatus.store (int (OpenRgbStatus::Error));  break;
-                }
+                openRgbStatus.store (int (connectStatus == orgb::ConnectStatus::HostNotResolved     ? OpenRgbStatus::HostNotResolved
+                                          : connectStatus == orgb::ConnectStatus::VersionNotSupported ? OpenRgbStatus::VersionNotSupported
+                                          : connectStatus == orgb::ConnectStatus::ConnectFailed       ? OpenRgbStatus::ServerUnreachable
+                                                                                                      : OpenRgbStatus::Error));
 
                 nextConnectAttempt = juce::Time::getMillisecondCounter() + (juce::uint32) reconnectDelayMs;
             }
@@ -325,19 +339,9 @@ void LightWorker::run()
 
         if (isUp)
         {
-            const auto state = getEffectiveState();
-            const auto colour = colours[(size_t) state].load();
-            const auto config = configVersion.load();
-
             if (! haveApplied || state != appliedState || colour != appliedColour || config != appliedConfig)
             {
-                juce::StringArray disabled;
-                {
-                    const juce::ScopedLock sl (lock);
-                    disabled = disabledDevices;
-                }
-
-                if (applyColour (client, devices, juce::Colour (colour), disabled, &switchedToCustom))
+                if (applyColour (client, devices, juce::Colour (colour), getDisabledDevices(), &switchedToCustom))
                 {
                     haveApplied = true;
                     appliedState = state;
@@ -353,28 +357,23 @@ void LightWorker::run()
 
         // Art-Net is independent of the OpenRGB connection.
         {
-            ArtNetConfig cfg;
+            if (artVersion != artSeenVersion)
             {
+                artSeenVersion = artVersion;
                 const juce::ScopedLock sl (lock);
-                cfg = artNetConfig;
+                artCfg = artNetConfig;
             }
 
-            const auto now = juce::Time::getMillisecondCounter();
-
-            if (cfg.enabled)
+            if (artCfg.enabled)
             {
-                const auto state = getEffectiveState();
-                const auto colour = colours[(size_t) state].load();
-
-                if (! artActive || cfg != artSent || state != artState || colour != artColour
+                if (! artActive || artCfg != artSent || state != artState || colour != artColour
                     || now - artLastSendMs >= artNetRefreshMs)
                 {
-                    if (artActive && cfg != artSent)
+                    if (artActive && artCfg != artSent)
                         artNet.send (artSent, juce::Colours::black);   // don't leave the previous fixtures lit
 
-
-                    artNetState.store (artNet.send (cfg, juce::Colour (colour)) ? 1 : 2);
-                    artSent = cfg;
+                    artNetState.store (artNet.send (artCfg, juce::Colour (colour)) ? 1 : 2);
+                    artSent = artCfg;
                     artState = state;
                     artColour = colour;
                     artLastSendMs = now;
@@ -389,7 +388,7 @@ void LightWorker::run()
             }
         }
 
-        wait (pollIntervalMs);
+        wait (now - lastChangeMs > idleAfterMs ? idlePollIntervalMs : pollIntervalMs);
     }
 
     if (artActive)
@@ -402,15 +401,7 @@ void LightWorker::run()
     }
 
     if (isUp)
-    {
-        juce::StringArray disabled;
-        {
-            const juce::ScopedLock sl (lock);
-            disabled = disabledDevices;
-        }
-        applyColour (client, devices, juce::Colours::black, disabled, nullptr);   // lights off when the plugin goes away
-    }
+        applyColour (client, devices, juce::Colours::black, getDisabledDevices(), nullptr);   // lights off when the plugin goes away
 
     client.disconnect();
-    connected.store (false);
 }

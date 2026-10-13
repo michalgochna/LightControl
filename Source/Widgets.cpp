@@ -26,21 +26,15 @@ namespace theme
 }
 
 //==============================================================================
-GlowButton::GlowButton (const juce::String& text, Style s) : juce::Button (text), style (s)
+GlowButton::GlowButton (const juce::String& label, Style buttonStyle) : juce::Button (label), style (buttonStyle)
 {
-    setButtonText (text);
+    setButtonText (label);
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
 }
 
 void GlowButton::setAccent (juce::Colour newAccent)
 {
     accent = newAccent;
-    repaint();
-}
-
-void GlowButton::setStyle (Style newStyle)
-{
-    style = newStyle;
     repaint();
 }
 

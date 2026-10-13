@@ -1,6 +1,7 @@
 #include "LightDisplay.h"
 #include "Widgets.h"
 
+
 namespace
 {
     constexpr double twoPi = juce::MathConstants<double>::twoPi;
@@ -9,6 +10,11 @@ namespace
 
 LightDisplay::LightDisplay (LightWorker& worker) : lights (worker)
 {
+   #if JUCE_DEBUG || LIGHTCONTROL_DEBUG_HOOKS
+    freezeTime = juce::SystemStats::getEnvironmentVariable ("LIGHTCONTROL_DEBUG_FREEZE", {}) == "1";
+   #endif
+
+    setOpaque (true);      // the base image covers every pixel, so the parent doesn't need to paint behind us
     lastTickMs = juce::Time::getMillisecondCounterHiRes();
     startTimerHz (30);
 }
@@ -43,10 +49,10 @@ void LightDisplay::timerCallback()
         flashStartMs = now;          // a ripple of light on every change
     }
 
-    shown = shown.interpolatedWith (lights.getColour (state), 0.2f);
+    shown = freezeTime ? lights.getColour (state) : shown.interpolatedWith (lights.getColour (state), 0.2f);
 
     const double speed = state == TransportState::Playing ? 0.35 : (state == TransportState::Recording ? 0.08 : 0.0);
-    rotation = std::fmod (rotation + dt * speed * twoPi, twoPi);
+    rotation = freezeTime ? 0.4 : std::fmod (rotation + dt * speed * twoPi, twoPi);
 
     if (! isShowing())
         return;
@@ -65,23 +71,46 @@ void LightDisplay::timerCallback()
     }
 }
 
+void LightDisplay::moved()   { layers.valid = false; }
+void LightDisplay::resized() { layers.valid = false; }
+
 void LightDisplay::rebuildLayers (juce::Rectangle<float> card, juce::Point<float> centre, float baseR, juce::Colour c)
 {
     const int w = getWidth(), h = getHeight();
     const float margin = 14.0f;
 
-    layers.glow = juce::Image (juce::Image::ARGB, w, h, true);
+    // Base: exactly what the editor paints behind the lamp (its background gradient), plus the card.
+    layers.base = juce::Image (juce::Image::RGB, w, h, false);
     {
-        juce::Graphics g (layers.glow);
-        theme::drawGlow (g, card, cardRadius, c, 0.9f, margin);
+        juce::Graphics g (layers.base);
+        const float top = -(float) getY();
+        g.setGradientFill (juce::ColourGradient (theme::bgTop, 0.0f, top, theme::bgBottom, 0.0f, top + (float) getParentHeight(), false));
+        g.fillAll();
+
+        g.setGradientFill (juce::ColourGradient (juce::Colours::white, 0.0f, card.getY(),
+                                                 juce::Colours::white.interpolatedWith (c, 0.12f), 0.0f, card.getBottom(), false));
+        g.fillRoundedRectangle (card, cardRadius);
     }
 
-    layers.halo = juce::Image (juce::Image::ARGB, w, h, true);
+    // Overlay: the glow outside the card and the halo inside it, both scaled by the pulse when drawn.
+    layers.overlay = juce::Image (juce::Image::ARGB, w, h, true);
     {
-        juce::Graphics g (layers.halo);
-        juce::Path clip;
-        clip.addRoundedRectangle (card, cardRadius);
-        g.reduceClipRegion (clip);
+        juce::Graphics g (layers.overlay);
+
+        {
+            juce::Path outside;                              // everything except the card (even-odd)
+            outside.setUsingNonZeroWinding (false);
+            outside.addRectangle (getLocalBounds().toFloat());
+            outside.addRoundedRectangle (card, cardRadius);
+            g.saveState();
+            g.reduceClipRegion (outside);
+            theme::drawGlow (g, card, cardRadius, c, 0.9f, margin);
+            g.restoreState();
+        }
+
+        juce::Path inside;
+        inside.addRoundedRectangle (card, cardRadius);
+        g.reduceClipRegion (inside);
 
         const float haloR = baseR * 3.8f;
         g.setGradientFill (juce::ColourGradient (c.withAlpha (0.55f), centre.x, centre.y,
@@ -89,25 +118,64 @@ void LightDisplay::rebuildLayers (juce::Rectangle<float> card, juce::Point<float
         g.fillEllipse (centre.x - haloR, centre.y - haloR, haloR * 2.0f, haloR * 2.0f);
     }
 
-    layers.card = juce::Image (juce::Image::ARGB, w, h, true);
-    {
-        juce::Graphics g (layers.card);
-        g.setGradientFill (juce::ColourGradient (juce::Colours::white, 0.0f, card.getY(),
-                                                 juce::Colours::white.interpolatedWith (c, 0.12f), 0.0f, card.getBottom(), false));
-        g.fillRoundedRectangle (card, cardRadius);
-    }
-
+    layers.orbs.clear();
     layers.colour = c;
     layers.bounds = getLocalBounds();
+    layers.parentHeight = getParentHeight();
     layers.centre = centre;
     layers.baseR = baseR;
     layers.valid = true;
 }
 
+const juce::Image& LightDisplay::getOrb (float radius, juce::Point<float> centre, juce::Colour c, juce::Point<int>& origin)
+{
+    // The gradients are the costliest part of a frame and only depend on the size, which pulses in
+    // quarter-pixel steps: draw each size once. The image is rendered with the lamp's exact sub-pixel
+    // centre, so blitting it at a whole-pixel position gives the same pixels as drawing it directly.
+    if (layers.orbCentre.getDistanceFrom (centre) > 0.01f)
+    {
+        layers.orbs.clear();
+        layers.orbCentre = centre;
+    }
+
+    const int key = (int) std::lround (radius * 4.0f);
+    const float R = (float) key * 0.25f;
+    const int s = (int) std::ceil (R * 2.0f) + 8;
+
+    origin = { (int) std::floor (centre.x) - s / 2, (int) std::floor (centre.y) - s / 2 };
+
+    auto it = layers.orbs.find (key);
+    if (it != layers.orbs.end())
+        return it->second;
+
+    if (layers.orbs.size() > 40)
+        layers.orbs.clear();
+
+    const float cx = centre.x - (float) origin.x, cy = centre.y - (float) origin.y;
+
+    juce::Image img (juce::Image::ARGB, s, s, true);
+    juce::Graphics g (img);
+
+    juce::ColourGradient body (c.brighter (0.7f), cx - R * 0.4f, cy - R * 0.5f,
+                               c.darker (0.25f), cx + R * 0.7f, cy + R * 0.9f, true);
+    g.setGradientFill (body);
+    g.fillEllipse (cx - R, cy - R, R * 2.0f, R * 2.0f);
+
+    juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.75f), cx - R * 0.3f, cy - R * 0.55f,
+                                juce::Colours::white.withAlpha (0.0f), cx - R * 0.3f, cy - R * 0.05f, false);
+    g.setGradientFill (gloss);
+    g.fillEllipse (cx - R * 0.65f, cy - R * 0.85f, R * 1.1f, R * 0.7f);
+
+    g.setColour (juce::Colours::white.withAlpha (0.8f));
+    g.drawEllipse (cx - R, cy - R, R * 2.0f, R * 2.0f, juce::jmax (1.5f, R * 0.04f));
+
+    return layers.orbs.emplace (key, std::move (img)).first->second;
+}
+
 void LightDisplay::paint (juce::Graphics& g)
 {
-    const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    const double t = nowMs / 1000.0;
+    const double nowMs = freezeTime ? flashStartMs + 5000.0 : juce::Time::getMillisecondCounterHiRes();
+    const double t = freezeTime ? 1.0 : nowMs / 1000.0;
     const auto c = shown;
 
     // How the lamp behaves in each state
@@ -131,7 +199,10 @@ void LightDisplay::paint (juce::Graphics& g)
     const float margin = 14.0f;
     auto card = getLocalBounds().toFloat().reduced (margin);
     if (card.getWidth() < 40.0f || card.getHeight() < 40.0f)
+    {
+        g.fillAll (theme::bgTop);    // opaque component: every pixel must be painted
         return;
+    }
 
     // The expensive layers only change with the size or (noticeably) the colour.
     const auto colourDistance = [] (juce::Colour x, juce::Colour y)
@@ -159,29 +230,21 @@ void LightDisplay::paint (juce::Graphics& g)
     const float cy = groupTop + baseR;
 
     if (! layers.valid || layers.bounds != getLocalBounds() || std::abs (layers.baseR - baseR) > 0.5f
-        || std::abs (layers.centre.y - cy) > 0.5f || colourDistance (layers.colour, c) >= 5)
+        || std::abs (layers.centre.y - cy) > 0.5f || layers.parentHeight != getParentHeight()
+        || colourDistance (layers.colour, c) >= 5)
         rebuildLayers (card, { cx, cy }, baseR, c);
 
     const float op = juce::jlimit (0.0f, 1.0f, intensity);
     const auto cardInt = card.toNearestInt();
 
-    // glow: only the ring around the card is ever visible, so don't blend the part underneath it
-    g.saveState();
-    g.excludeClipRegion (card.reduced (cardRadius * 0.3f).toNearestInt());
+    g.drawImageAt (layers.base, 0, 0);          // opaque copy, no blending
     g.setOpacity (op);
-    g.drawImageAt (layers.glow, 0, 0);
-    g.restoreState();
+    g.drawImageAt (layers.overlay, 0, 0);
+    g.setOpacity (1.0f);
 
-    g.drawImageAt (layers.card, 0, 0);
-
-    // Everything below stays inside the card. A rectangular clip is far cheaper than a rounded-path clip,
-    // and the corners are baked into the cached halo image.
+    // Everything below stays inside the card; a rectangular clip is far cheaper than a rounded-path clip.
     g.saveState();
     g.reduceClipRegion (cardInt);
-
-    g.setOpacity (op);
-    g.drawImageAt (layers.halo, 0, 0);
-    g.setOpacity (1.0f);
 
     // rays (a few thin triangles: cheap to fill directly, unlike rotating a big image)
     {
@@ -217,18 +280,9 @@ void LightDisplay::paint (juce::Graphics& g)
 
     // the lamp itself
     {
-        juce::ColourGradient body (c.brighter (0.7f), cx - R * 0.4f, cy - R * 0.5f,
-                                   c.darker (0.25f), cx + R * 0.7f, cy + R * 0.9f, true);
-        g.setGradientFill (body);
-        g.fillEllipse (cx - R, cy - R, R * 2.0f, R * 2.0f);
-
-        juce::ColourGradient gloss (juce::Colours::white.withAlpha (0.75f), cx - R * 0.3f, cy - R * 0.55f,
-                                    juce::Colours::white.withAlpha (0.0f), cx - R * 0.3f, cy - R * 0.05f, false);
-        g.setGradientFill (gloss);
-        g.fillEllipse (cx - R * 0.65f, cy - R * 0.85f, R * 1.1f, R * 0.7f);
-
-        g.setColour (juce::Colours::white.withAlpha (0.8f));
-        g.drawEllipse (cx - R, cy - R, R * 2.0f, R * 2.0f, juce::jmax (1.5f, R * 0.04f));
+        juce::Point<int> origin;
+        const auto& orb = getOrb (R, { cx, cy }, c, origin);
+        g.drawImageAt (orb, origin.x, origin.y);
     }
 
     g.restoreState();
@@ -268,4 +322,5 @@ void LightDisplay::paint (juce::Graphics& g)
         g.setFont (theme::font (juce::jlimit (10.0f, 14.0f, card.getHeight() * 0.04f)));
         g.drawFittedText (caption, card.removeFromBottom (30.0f).reduced (12.0f, 0.0f).toNearestInt(), juce::Justification::centred, 2);
     }
+
 }

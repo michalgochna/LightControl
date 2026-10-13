@@ -39,6 +39,7 @@ private:
     juce::ComponentBoundsConstrainer constrainer;
     bool settingsVisible = true;
     int tick = 0;
+    juce::Colour lastLogoColour;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LightControlAudioProcessorEditor)
 };

@@ -53,7 +53,6 @@ public:
 
     void setOpenRgbEnabled (bool enabled) noexcept   { openRgbEnabled.store (enabled); }
     bool isOpenRgbEnabled() const noexcept           { return openRgbEnabled.load(); }
-    bool isConnected() const noexcept        { return connected.load(); }
     OpenRgbStatus getOpenRgbStatus() const noexcept   { return OpenRgbStatus (openRgbStatus.load()); }
     bool hasReceivedAudio() const noexcept   { return receivedBlock.load(); }
     int getDeviceCount() const noexcept      { return deviceCount.load(); }
@@ -96,10 +95,10 @@ private:
     std::atomic<bool> reconnectRequested { false };
 
     ArtNetConfig artNetConfig;
+    std::atomic<int> artNetVersion { 0 };               // bumped when artNetConfig changes, so the worker copies it only then
     std::atomic<int> artNetState { 0 };                 // 0 = off / not sent yet, 1 = ok, 2 = send failed
 
     std::atomic<int> openRgbStatus { int (OpenRgbStatus::Starting) };
-    std::atomic<bool> connected { false };
     std::atomic<int> deviceCount { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LightWorker)

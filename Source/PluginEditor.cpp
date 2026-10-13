@@ -267,7 +267,12 @@ void LightControlAudioProcessorEditor::updateStatuses()
 
 void LightControlAudioProcessorEditor::timerCallback()
 {
-    repaint (0, 0, 70, headerHeight);   // the little lamp in the header follows the state colour
+    // the little lamp in the header follows the state colour, so only redraw it while that changes
+    if (const auto shown = display.getShownColour(); shown != lastLogoColour)
+    {
+        lastLogoColour = shown;
+        repaint (0, 0, 70, headerHeight);
+    }
 
     if (++tick % 4 == 0)
         updateStatuses();

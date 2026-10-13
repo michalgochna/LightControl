@@ -37,15 +37,15 @@ public:
     static constexpr int margin = 9;
     static juce::Rectangle<int> withGlowMargin (juce::Rectangle<int> r) { return r.expanded (margin); }
 
-    explicit GlowButton (const juce::String& text, Style style = Style::Soft);
+    explicit GlowButton (const juce::String& label, Style buttonStyle = Style::Soft);
 
     void setAccent (juce::Colour newAccent);
-    void setStyle (Style newStyle);
 
     void paintButton (juce::Graphics&, bool isMouseOver, bool isButtonDown) override;
 
 private:
     void buttonStateChanged() override;
+    using juce::Button::clicked;
     void clicked() override;
     void timerCallback() override;
 

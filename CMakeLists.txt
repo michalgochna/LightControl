@@ -30,7 +30,6 @@ juce_add_plugin(LightControl
 # The legacy sources include <JuceHeader.h>, which Projucer used to generate.
 juce_generate_juce_header(LightControl)
 
-# Old sources that don't compile yet (Devices, Device, MenuViewer) are left out until they are fixed.
 target_sources(LightControl PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
@@ -39,11 +38,13 @@ target_sources(LightControl PRIVATE
     Source/Settings.cpp
     Source/Widgets.cpp
     Source/LightLookAndFeel.cpp
-    Source/LightDisplay.cpp
-    Source/BroadcasterComponent.cpp
-    Source/ListenerComponent.cpp)
+    Source/LightDisplay.cpp)
 
 target_include_directories(LightControl PRIVATE Source)
+
+# The OpenRGB SDK's headers aren't ours to fix: keep their warnings out of our build output.
+get_target_property(ORGB_INCLUDE_DIRS orgbsdk INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(LightControl SYSTEM PRIVATE ${ORGB_INCLUDE_DIRS})
 
 target_compile_definitions(LightControl PUBLIC
     JUCE_WEB_BROWSER=0
