@@ -18,7 +18,7 @@ jobs:
           - { name: Linux,   os: ubuntu-24.04 }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -61,21 +61,21 @@ jobs:
           done
 
       - name: Upload release packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}
           path: dist/
           if-no-files-found: error
 
       - name: Upload VST3
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: LightControl-VST3-${{ matrix.name }}
           path: build/LightControl_artefacts/Release/VST3/
           if-no-files-found: error
 
       - name: Upload Standalone
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: LightControl-Standalone-${{ matrix.name }}
           path: build/LightControl_artefacts/Release/Standalone/
@@ -89,7 +89,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: dist
