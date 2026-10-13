@@ -11,7 +11,6 @@ class LightDisplay : public juce::Component,
 public:
     explicit LightDisplay (LightWorker& worker);
 
-    void setCaption (const juce::String& text);
     juce::Colour getShownColour() const noexcept    { return shown; }
 
     void paint (juce::Graphics&) override;
@@ -55,7 +54,6 @@ private:
     juce::Colour lastRepaintColour;
     int idleTicks = 0;
     bool freezeTime = false;     // debug builds only: deterministic frames for screenshot comparisons
-    juce::String caption;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LightDisplay)
 };

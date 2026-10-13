@@ -100,7 +100,7 @@ namespace help
                 bullet ("Stop: the transport is stopped or paused (amber). Pause counts as Stop for now."),
 
                 sub ("The lamp"),
-                para ("The big lamp always shows the current state, with or without real lights. It pulses while recording, breathes and turns its rays while playing, and glows quietly when stopped. A ripple of light runs out whenever the state changes."),
+                para ("The big lamp always shows the current state, with or without real lights. It pulses while recording, breathes and turns its rays while playing, and glows quietly when stopped. A ripple of light runs out whenever the state changes. Below the lamp an icon in the state's colour shows it without any text: a circle for recording, a triangle for playing, two bars for stop / pause."),
 
                 sub ("The status chips"),
                 para ("Next to the buttons at the top, two chips show OpenRGB and Art-Net: green is working, amber means waiting or no devices, red is an error, grey is off. Hover over a chip for the details, which are also listed on the Settings page under Status."),

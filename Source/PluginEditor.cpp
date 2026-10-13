@@ -298,24 +298,6 @@ void LightControlAudioProcessorEditor::updateStatuses()
     juce::Array<juce::Colour> colours { transport.colour, orgb.colour, art.colour };
     settingsPage.setStatusLines ({ transport.longText, orgb.longText, art.longText }, colours);
 
-    // Is anything real being driven? If not, tell the user the lamp on screen is all there is.
-    const bool orgbActive = lights.getOpenRgbStatus() == OpenRgbStatus::Connected && lights.getDeviceCount() > 0;
-    const bool artActive = lights.isArtNetOk();
-
-    if (orgbActive || artActive)
-    {
-        juce::StringArray parts;
-        if (orgbActive)
-            parts.add ("OpenRGB (" + juce::String (lights.getDeviceCount()) + ")");
-        if (artActive)
-            parts.add ("Art-Net");
-        display.setCaption ("Driving lights: " + parts.joinIntoString (" + "));
-    }
-    else
-    {
-        display.setCaption ("On-screen light only - no lights connected");
-    }
-
     // chip widths follow their text
     if (const int chipsWidth = openRgbChip.getIdealWidth() + artNetChip.getIdealWidth(); chipsWidth != lastChipsWidth)
     {

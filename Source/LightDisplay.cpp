@@ -19,15 +19,6 @@ LightDisplay::LightDisplay (LightWorker& worker) : lights (worker)
     startTimerHz (30);
 }
 
-void LightDisplay::setCaption (const juce::String& text)
-{
-    if (text != caption)
-    {
-        caption = text;
-        repaint();
-    }
-}
-
 void LightDisplay::mouseDoubleClick (const juce::MouseEvent&)
 {
     if (onDoubleClick)
@@ -210,15 +201,11 @@ void LightDisplay::paint (juce::Graphics& g)
         return std::abs (x.getRed() - y.getRed()) + std::abs (x.getGreen() - y.getGreen()) + std::abs (x.getBlue() - y.getBlue());
     };
 
-    // Vertical layout: [lamp] [big label] [small label] ... [caption]. Everything is sized from the space that is
-    // left, so nothing overlaps in a small window.
-    const bool showCaption = caption.isNotEmpty() && card.getHeight() > 150.0f;
-    const float captionH = showCaption ? 34.0f : 0.0f;
-    const float availH = card.getHeight() - captionH;
+    // Vertical layout: [lamp] [icon]. Everything is sized from the space that is left. No text is drawn here.
+    const float availH = card.getHeight();
 
     const float bigH = juce::jlimit (16.0f, 72.0f, availH * 0.13f);
-    const float smallH = juce::jlimit (11.0f, 22.0f, availH * 0.05f);
-    const float textBlockH = bigH * 1.25f + smallH * 1.5f;
+    const float textBlockH = bigH * 1.25f;
 
     const float maxR = (availH * 0.92f - textBlockH) / 2.6f;
     const float baseR = juce::jmax (12.0f, juce::jmin (card.getWidth() * 0.26f, availH * 0.26f, maxR));
@@ -291,33 +278,19 @@ void LightDisplay::paint (juce::Graphics& g)
     g.setColour (c.withAlpha (0.35f));
     g.drawRoundedRectangle (card.reduced (0.75f), cardRadius, 1.5f);
 
-    // labels: an icon in the colour of the state (circle = recording / playing, two bars = paused / stopped)
-    const char* small = "Paused";
-    switch (state)
+    // state icon in the colour of the state (circle = recording, triangle = playing, two bars = paused / stopped)
     {
-        case TransportState::Recording: small = "Recording"; break;
-        case TransportState::Playing:   small = "Playing";   break;
-        case TransportState::Stopped:   break;
-    }
-    if (waiting)
-        small = "Waiting for the transport";
-
-    auto textArea = juce::Rectangle<float> (card.getX() + 8.0f, cy + baseR * 1.3f, card.getWidth() - 16.0f, textBlockH);
-    const auto iconRow = textArea.removeFromTop (bigH * 1.25f);
-
-    if (waiting)
-    {
-        g.setColour (theme::text);
-        g.setFont (theme::font (bigH, true));
-        g.drawFittedText ("READY", iconRow.toNearestInt(), juce::Justification::centred, 1);
-    }
-    else
-    {
+        const auto iconRow = juce::Rectangle<float> (card.getX() + 8.0f, cy + baseR * 1.3f, card.getWidth() - 16.0f, textBlockH);
         const float s = bigH * 0.95f;
         const auto icon = juce::Rectangle<float> (s, s).withCentre (iconRow.getCentre());
         const auto outline = c.darker (0.5f).withAlpha (0.8f);
 
-        if (state == TransportState::Stopped)
+        if (waiting)
+        {
+            g.setColour (c.withAlpha (0.6f));
+            g.drawEllipse (icon.reduced (s * 0.1f), s * 0.1f);   // hollow ring until the host starts the transport
+        }
+        else if (state == TransportState::Stopped)
         {
             const float barW = s * 0.30f;
             const auto left = juce::Rectangle<float> (icon.getX() + s * 0.10f, icon.getY(), barW, s);
@@ -330,6 +303,26 @@ void LightDisplay::paint (juce::Graphics& g)
                 g.drawRoundedRectangle (bar, barW * 0.25f, 1.0f);
             }
         }
+        else if (state == TransportState::Playing)
+        {
+            juce::Path triangle;   // slightly right of centre so it looks optically centred
+            const float x0 = icon.getX() + s * 0.12f;
+            triangle.addTriangle (x0, icon.getY(), x0, icon.getBottom(), icon.getRight() + s * 0.05f, icon.getCentreY());
+            g.setColour (c);
+            g.fillPath (triangle);
+            g.setColour (outline);
+            g.strokePath (triangle, juce::PathStrokeType (1.0f, juce::PathStrokeType::curved));
+        }
+        else if (state == TransportState::Playing)
+        {
+            juce::Path triangle;
+            triangle.addTriangle (icon.getX() + s * 0.12f, icon.getY(), icon.getX() + s * 0.12f, icon.getBottom(),
+                                  icon.getRight(), icon.getCentreY());
+            g.setColour (c);
+            g.fillPath (triangle.createPathWithRoundedCorners (s * 0.08f));
+            g.setColour (outline);
+            g.strokePath (triangle.createPathWithRoundedCorners (s * 0.08f), juce::PathStrokeType (1.0f));
+        }
         else
         {
             g.setColour (c);
@@ -338,16 +331,4 @@ void LightDisplay::paint (juce::Graphics& g)
             g.drawEllipse (icon.reduced (0.5f), 1.0f);
         }
     }
-
-    g.setColour (theme::textMuted);
-    g.setFont (theme::font (smallH));
-    g.drawFittedText (small, textArea.removeFromTop (smallH * 1.5f).toNearestInt(), juce::Justification::centred, 1);
-
-    if (showCaption)
-    {
-        g.setColour (theme::textMuted.withAlpha (0.9f));
-        g.setFont (theme::font (juce::jlimit (10.0f, 14.0f, card.getHeight() * 0.04f)));
-        g.drawFittedText (caption, card.removeFromBottom (30.0f).reduced (12.0f, 0.0f).toNearestInt(), juce::Justification::centred, 2);
-    }
-
 }
