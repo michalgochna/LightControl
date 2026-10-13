@@ -13,7 +13,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Windows, os: windows-latest }
+          - { name: Windows,       os: windows-latest }
+          - { name: Windows-32bit, os: windows-latest, arch: Win32 }
           - { name: macOS,   os: macos-latest }
           - { name: Linux,   os: ubuntu-24.04 }
 
@@ -35,6 +36,8 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          elif [ -n "${{ matrix.arch }}" ]; then
+            cmake -S . -B build -A "${{ matrix.arch }}"
           else
             cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           fi
@@ -56,9 +59,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          for kind in VST3 Standalone; do
-            (cd "build/LightControl_artefacts/Release/$kind" && cmake -E tar cf "$GITHUB_WORKSPACE/dist/LightControl-$kind-${{ matrix.name }}.zip" --format=zip $(ls))
-          done
+          # the VST3 folder also holds .lib/.exp files from the Windows linker that nobody needs
+          (cd build/LightControl_artefacts/Release/VST3 && cmake -E tar cf "$GITHUB_WORKSPACE/dist/LightControl-VST3-${{ matrix.name }}.zip" --format=zip LightControl.vst3)
+          (cd build/LightControl_artefacts/Release/Standalone && cmake -E tar cf "$GITHUB_WORKSPACE/dist/LightControl-Standalone-${{ matrix.name }}.zip" --format=zip $(ls | grep -v -E '\.(lib|exp)$'))
 
       - name: Upload release packages
         uses: actions/upload-artifact@v7
@@ -102,7 +105,7 @@ jobs:
           cat > notes.md <<'EOF'
           LightControl lights your lights by the DAW transport (red = recording, green = playing, amber = stopped/paused) and shows a lamp on screen. VST3 plugin and standalone app, with OpenRGB and Art-Net support.
 
-          **Install:** unzip `LightControl-VST3-<your system>.zip` and copy `LightControl.vst3` to your VST3 folder (Windows: `C:\Program Files\Common Files\VST3`, macOS: `~/Library/Audio/Plug-Ins/VST3`, Linux: `~/.vst3`), then rescan plugins in your DAW. The plugin has a built-in Help with the details.
+          **Install:** unzip `LightControl-VST3-<your system>.zip` (use the `Windows-32bit` one only with a 32-bit DAW) and copy `LightControl.vst3` to your VST3 folder (Windows: `C:\Program Files\Common Files\VST3`, macOS: `~/Library/Audio/Plug-Ins/VST3`, Linux: `~/.vst3`), then rescan plugins in your DAW. The plugin has a built-in Help with the details.
 
           The builds are not code-signed. Windows may show a SmartScreen warning; on macOS run `xattr -cr LightControl.vst3` once after copying. macOS has not been tested on real hardware.
           EOF
