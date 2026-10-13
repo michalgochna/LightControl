@@ -38,6 +38,12 @@ void GlowButton::setAccent (juce::Colour newAccent)
     repaint();
 }
 
+void GlowButton::setStyle (Style newStyle)
+{
+    style = newStyle;
+    repaint();
+}
+
 void GlowButton::buttonStateChanged()
 {
     startTimerHz (30);

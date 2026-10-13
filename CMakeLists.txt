@@ -38,7 +38,9 @@ target_sources(LightControl PRIVATE
     Source/Settings.cpp
     Source/Widgets.cpp
     Source/LightLookAndFeel.cpp
-    Source/LightDisplay.cpp)
+    Source/LightDisplay.cpp
+    Source/HelpContent.cpp
+    Source/HelpPage.cpp)
 
 target_include_directories(LightControl PRIVATE Source)
 

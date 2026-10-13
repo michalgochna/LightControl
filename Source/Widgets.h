@@ -40,6 +40,7 @@ public:
     explicit GlowButton (const juce::String& label, Style buttonStyle = Style::Soft);
 
     void setAccent (juce::Colour newAccent);
+    void setStyle (Style newStyle);
 
     void paintButton (juce::Graphics&, bool isMouseOver, bool isButtonDown) override;
 

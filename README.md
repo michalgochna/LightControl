@@ -10,6 +10,8 @@ Lights are driven through:
   *SDK Server* enabled; the plugin connects to `127.0.0.1:6742` by default.
 - **Art-Net** (DMX over the network) sent directly to a node's IP address, no extra software needed.
 
+The plugin has a built-in Help (installation, configuration, usage, licences) behind the Help button.
+
 Settings are saved with the project. *Save as default* stores them for new instances of the plugin
 (`defaults.xml` in the user's application data folder).
 
@@ -36,8 +38,8 @@ On Linux the JUCE build needs: `libasound2-dev libfreetype-dev libfontconfig1-de
 libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev libcurl4-openssl-dev
 mesa-common-dev libglu1-mesa-dev`.
 
-For Reaper, enable *Run FX when stopped* on the track if you want the lights to react the moment the transport
-stops (the plugin also assumes "stopped" when the host stops calling it).
+For Reaper: it normally stops calling plugins while the transport is stopped. LightControl then treats half a second of
+silence as "stopped"; the lights react faster if Reaper keeps running the plugin while stopped (see Reaper's Preferences > Audio).
 
 ## Licensing
 

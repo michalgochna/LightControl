@@ -74,20 +74,46 @@ LightControlAudioProcessorEditor::LightControlAudioProcessorEditor (LightControl
     settingsViewport.setScrollBarsShown (true, false);
     settingsViewport.setScrollBarThickness (8);
 
-    display.onDoubleClick = [this] { setSettingsVisible (! settingsVisible); };
+    display.onDoubleClick = [this]
+    {
+        if (helpOpen)
+        {
+            setHelpOpen (false);
+            setSettingsVisible (false);
+        }
+        else
+        {
+            setSettingsVisible (! settingsVisible);
+        }
+    };
 
-    settingsButton.onClick = [this] { setSettingsVisible (! settingsVisible); };
+    settingsButton.onClick = [this]
+    {
+        if (helpOpen)
+        {
+            setHelpOpen (false);
+            setSettingsVisible (true);
+        }
+        else
+        {
+            setSettingsVisible (! settingsVisible);
+        }
+    };
+
+    helpButton.onClick = [this] { setHelpOpen (! helpOpen); };
+    helpButton.setTooltip ("Installation, configuration, usage and licences");
     settingsButton.setTooltip ("Show or hide the settings. Hidden, the window is just the lamp: resize it freely, e.g. for a second screen");
 
     addAndMakeVisible (display);
     addAndMakeVisible (openRgbChip);
     addAndMakeVisible (artNetChip);
     addAndMakeVisible (settingsButton);
+    addAndMakeVisible (helpButton);
     addAndMakeVisible (settingsViewport);
+    addChildComponent (helpPage);
 
     settingsVisible = audioProcessor.uiSettingsVisible.load();
-    settingsViewport.setVisible (settingsVisible);
-    settingsButton.setButtonText (settingsVisible ? "Hide settings" : "Settings");
+    updateButtons();
 
     constrainer.setMinimumSize (minWidth, minHeight);
     constrainer.setMaximumSize (4000, 3000);
@@ -104,6 +130,14 @@ LightControlAudioProcessorEditor::LightControlAudioProcessorEditor (LightControl
                                                 : state == "play" ? TransportState::Playing : TransportState::Stopped, 600000);
         if (juce::SystemStats::getEnvironmentVariable ("LIGHTCONTROL_DEBUG_HIDE", {}) == "1")
             setSettingsVisible (false);
+        const auto helpSection = juce::SystemStats::getEnvironmentVariable ("LIGHTCONTROL_DEBUG_HELP", {});
+        if (helpSection.isNotEmpty())
+        {
+            helpPage.showSection (helpSection == "configuration" ? help::Section::Configuration
+                                  : helpSection == "usage" ? help::Section::Usage
+                                  : helpSection == "licences" ? help::Section::Licences : help::Section::Installation);
+            setHelpOpen (true);
+        }
         if (juce::SystemStats::getEnvironmentVariable ("LIGHTCONTROL_DEBUG_CLICK", {}) == "1")
             juce::Timer::callAfterDelay (2500, [safe = juce::Component::SafePointer<GlowButton> (&settingsButton)]
                                          { if (safe != nullptr) safe->triggerClick(); });
@@ -124,8 +158,21 @@ void LightControlAudioProcessorEditor::setSettingsVisible (bool visible)
 {
     settingsVisible = visible;
     audioProcessor.uiSettingsVisible = visible;
-    settingsButton.setButtonText (visible ? "Hide settings" : "Settings");
+    updateButtons();
     resized();
+}
+
+void LightControlAudioProcessorEditor::setHelpOpen (bool open)
+{
+    helpOpen = open;
+    updateButtons();
+    resized();
+}
+
+void LightControlAudioProcessorEditor::updateButtons()
+{
+    settingsButton.setButtonText (settingsVisible && ! helpOpen ? "Hide settings" : "Settings");
+    helpButton.setButtonText (helpOpen ? "Close help" : "Help");
 }
 
 void LightControlAudioProcessorEditor::paint (juce::Graphics& g)
@@ -165,45 +212,55 @@ void LightControlAudioProcessorEditor::resized()
     auto r = getLocalBounds();
     const int width = getWidth(), height = getHeight();
 
-    // header: [logo + title] ............ [chips] [settings button]
+    // header: [logo + title] ............ [chips] [settings] [help]
     auto header = r.removeFromTop (headerHeight);
-    const int btnW = 126;
-    settingsButton.setBounds (GlowButton::withGlowMargin (header.removeFromRight (btnW + 16).reduced (0, 12).withTrimmedRight (6)
-                                                                .withSizeKeepingCentre (btnW, 32)));
+    const auto place = [&] (GlowButton& button, int w)
+    {
+        button.setBounds (GlowButton::withGlowMargin (header.removeFromRight (w + 14).reduced (0, 12)
+                                                            .withSizeKeepingCentre (w, 32)));
+    };
+    place (helpButton, 100);
+    place (settingsButton, 126);
+    header.removeFromRight (4);
 
-    const bool showChips = width >= 520;
+    // the chips only appear if there is room left between the title and the buttons
+    const int titleReserve = width >= 420 ? 214 : 62;
+    const int chipsWidth = openRgbChip.getIdealWidth() + 8 + artNetChip.getIdealWidth();
+    const bool showChips = header.getWidth() - titleReserve >= chipsWidth;
     openRgbChip.setVisible (showChips);
     artNetChip.setVisible (showChips);
     if (showChips)
     {
-        header.removeFromRight (6);
-        const int h = 28;
-        auto chipRow = header.withSizeKeepingCentre (header.getWidth(), h);
+        auto chipRow = header.withSizeKeepingCentre (header.getWidth(), 28);
         artNetChip.setBounds (chipRow.removeFromRight (artNetChip.getIdealWidth()));
         chipRow.removeFromRight (8);
         openRgbChip.setBounds (chipRow.removeFromRight (openRgbChip.getIdealWidth()));
     }
 
+    // body: the lamp plus one panel, which shows either the settings or the help
     auto body = r.reduced (8, 0).withTrimmedBottom (8);
-    settingsViewport.setVisible (settingsVisible);
+    const bool panelVisible = settingsVisible || helpOpen;
+    settingsViewport.setVisible (settingsVisible && ! helpOpen);
+    helpPage.setVisible (helpOpen);
+    juce::Component& panel = helpOpen ? static_cast<juce::Component&> (helpPage) : static_cast<juce::Component&> (settingsViewport);
 
-    if (! settingsVisible)
+    if (! panelVisible)
     {
         display.setBounds (body);
     }
-    else if (width >= 640 && width >= height * 1.15)          // wide: lamp left, settings right
+    else if (width >= 640 && width >= height * 1.15)          // wide: lamp left, panel right
     {
         auto side = body.removeFromRight (juce::jlimit (320, 460, (int) (width * 0.38f)));
         body.removeFromRight (6);
         display.setBounds (body);
-        settingsViewport.setBounds (side);
+        panel.setBounds (side);
     }
-    else                                                          // narrow: lamp on top, settings below
+    else                                                          // narrow: lamp on top, panel below
     {
         const int lampH = juce::jlimit (170, 460, (int) (body.getHeight() * 0.42f));
         display.setBounds (body.removeFromTop (lampH));
         body.removeFromTop (4);
-        settingsViewport.setBounds (body);
+        panel.setBounds (body);
     }
 
     layoutSettingsContent();
@@ -260,9 +317,11 @@ void LightControlAudioProcessorEditor::updateStatuses()
     }
 
     // chip widths follow their text
-    if (openRgbChip.isVisible() && (openRgbChip.getWidth() != openRgbChip.getIdealWidth()
-                                    || artNetChip.getWidth() != artNetChip.getIdealWidth()))
+    if (const int chipsWidth = openRgbChip.getIdealWidth() + artNetChip.getIdealWidth(); chipsWidth != lastChipsWidth)
+    {
+        lastChipsWidth = chipsWidth;
         resized();
+    }
 }
 
 void LightControlAudioProcessorEditor::timerCallback()
