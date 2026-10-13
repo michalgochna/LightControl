@@ -291,26 +291,53 @@ void LightDisplay::paint (juce::Graphics& g)
     g.setColour (c.withAlpha (0.35f));
     g.drawRoundedRectangle (card.reduced (0.75f), cardRadius, 1.5f);
 
-    // labels
-    const char* big = "STOP";
-    const char* small = "Stopped";
+    // labels: an icon in the colour of the state (circle = recording / playing, two bars = paused / stopped)
+    const char* small = "Paused";
     switch (state)
     {
-        case TransportState::Recording: big = "REC";  small = "Recording"; break;
-        case TransportState::Playing:   big = "PLAY"; small = "Playing";   break;
+        case TransportState::Recording: small = "Recording"; break;
+        case TransportState::Playing:   small = "Playing";   break;
         case TransportState::Stopped:   break;
     }
     if (waiting)
-    {
-        big = "READY";
         small = "Waiting for the transport";
-    }
 
     auto textArea = juce::Rectangle<float> (card.getX() + 8.0f, cy + baseR * 1.3f, card.getWidth() - 16.0f, textBlockH);
+    const auto iconRow = textArea.removeFromTop (bigH * 1.25f);
 
-    g.setColour (theme::text);
-    g.setFont (theme::font (bigH, true));
-    g.drawFittedText (big, textArea.removeFromTop (bigH * 1.25f).toNearestInt(), juce::Justification::centred, 1);
+    if (waiting)
+    {
+        g.setColour (theme::text);
+        g.setFont (theme::font (bigH, true));
+        g.drawFittedText ("READY", iconRow.toNearestInt(), juce::Justification::centred, 1);
+    }
+    else
+    {
+        const float s = bigH * 0.95f;
+        const auto icon = juce::Rectangle<float> (s, s).withCentre (iconRow.getCentre());
+        const auto outline = c.darker (0.5f).withAlpha (0.8f);
+
+        if (state == TransportState::Stopped)
+        {
+            const float barW = s * 0.30f;
+            const auto left = juce::Rectangle<float> (icon.getX() + s * 0.10f, icon.getY(), barW, s);
+            const auto right = left.withX (icon.getRight() - s * 0.10f - barW);
+            for (const auto& bar : { left, right })
+            {
+                g.setColour (c);
+                g.fillRoundedRectangle (bar, barW * 0.25f);
+                g.setColour (outline);
+                g.drawRoundedRectangle (bar, barW * 0.25f, 1.0f);
+            }
+        }
+        else
+        {
+            g.setColour (c);
+            g.fillEllipse (icon);
+            g.setColour (outline);
+            g.drawEllipse (icon.reduced (0.5f), 1.0f);
+        }
+    }
 
     g.setColour (theme::textMuted);
     g.setFont (theme::font (smallH));
